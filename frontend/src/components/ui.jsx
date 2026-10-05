@@ -43,7 +43,7 @@ export function FareSummary({ pickup, dropoff, distanceKm, fare, loading }) {
         <Row label="Distance" value={loading ? 'Calculating…' : ready ? `${distanceKm} km` : '–'} />
         <Row label="Rate" value={`${naira(RATE)} per km`} />
       </Stack>
-      <Box sx={{ bgcolor: brand.deep, color: '#fff', borderRadius: 3, p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+      <Box sx={{ bgcolor: brand.deep, color: '#fff', borderRadius: 1, p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <Typography fontWeight={600}>Total fare</Typography>
         <Typography variant="h3" sx={{ fontSize: '2.2rem', color: ready ? brand.orange : 'rgba(255,255,255,.4)' }}>{ready ? naira(fare) : '₦0'}</Typography>
       </Box>

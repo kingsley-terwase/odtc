@@ -93,7 +93,7 @@ export default function Book() {
         <Typography color="text.secondary" sx={{ mt: 1, mb: 5, fontSize: '1.1rem' }}>{naira(RATE)} per kilometre. Your fare updates as soon as both locations are set.</Typography>
         <Box component="form" onSubmit={submit} noValidate sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.3fr 1fr' }, gap: { xs: 3, md: 5 }, alignItems: 'start' }}>
           <Stack spacing={3}>
-            <Paper variant="outlined" sx={{ p: { xs: 2.5, md: 4 }, borderRadius: 5 }}>
+            <Paper variant="outlined" sx={{ p: { xs: 2.5, md: 4 }, borderRadius: 2 }}>
               <Typography variant="h5" sx={{ mb: 2.5 }}>Where is it going?</Typography>
               <Stack spacing={2.5}>
                 <PlaceField label="Pickup location" value={pickup} onChange={setPickup} error={errors.pickup} />
@@ -101,7 +101,7 @@ export default function Book() {
                 {quoteErr && <Notice>{quoteErr}</Notice>}
               </Stack>
             </Paper>
-            <Paper variant="outlined" sx={{ p: { xs: 2.5, md: 4 }, borderRadius: 5 }}>
+            <Paper variant="outlined" sx={{ p: { xs: 2.5, md: 4 }, borderRadius: 2 }}>
               <Typography variant="h5" sx={{ mb: 2.5 }}>Your details</Typography>
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2.5 }}>
                 <TextField label="Full name" value={f.name} onChange={set('name')} error={!!errors.name} helperText={errors.name} autoComplete="name" />
@@ -116,7 +116,7 @@ export default function Book() {
             </Paper>
           </Stack>
 
-          <Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, borderRadius: 5, border: '2px solid', borderColor: brand.blue, position: { md: 'sticky' }, top: 96 }}>
+          <Paper elevation={0} sx={{ p: { xs: 2.5, md: 4 }, borderRadius: 2, border: '2px solid', borderColor: brand.blue, position: { md: 'sticky' }, top: 96 }}>
             <Typography variant="h5" sx={{ mb: 2.5 }}>Your fare</Typography>
             <FareSummary pickup={pickup?.label} dropoff={dropoff?.label} distanceKm={quote?.distanceKm} fare={quote?.fare} loading={quoting} />
             {payErr && <Box sx={{ mt: 2 }}><Notice>{payErr}</Notice></Box>}

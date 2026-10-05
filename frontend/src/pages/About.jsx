@@ -34,7 +34,7 @@ export default function About() {
               ODTC Logistics moves your parcels and packages for a simple, distance-based price. Book online, see your fare, pay, and get your reference.
             </Typography>
           </Box>
-          <Box component="img" src="/logo-truck.jpg" alt="ODTC Logistics truck" sx={{ width: '100%', maxWidth: 340, borderRadius: 6, justifySelf: { md: 'end' } }} />
+          <Box component="img" src="/logo-truck.jpg" alt="ODTC Logistics truck" sx={{ width: '100%', maxWidth: 400, borderRadius: 20, justifySelf: { md: 'end' } }} />
         </Container>
       </Box>
 
@@ -51,7 +51,7 @@ export default function About() {
       </Container>
 
       <Container maxWidth="lg" sx={{ pb: { xs: 8, md: 12 } }}>
-        <Paper variant="outlined" sx={{ borderRadius: 6, p: { xs: 3, md: 6 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 5 }}>
+        <Paper variant="outlined" sx={{ borderRadius: 2, p: { xs: 3, md: 6 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 5 }}>
           <Box>
             <Typography variant="h2" sx={{ fontSize: { xs: '2rem', md: '2.6rem' } }}>Talk to us</Typography>
             <Typography color="text.secondary" sx={{ mt: 1.5, mb: 3, fontSize: '1.1rem' }}>Questions about a delivery or your booking? Reach out and mention your booking reference if you have one.</Typography>
