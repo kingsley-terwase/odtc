@@ -1,0 +1,47 @@
+{
+    "name": "odtc-logistics",
+    "version": "0.1.0",
+    "private": true,
+    "description": "ODTC Logistics backend API",
+    "type": "module",
+    "engines": {
+        "node": "^22.12.0 || ^24.0.0"
+    },
+    "scripts": {
+        "dev": "tsx watch src/server.ts",
+        "build": "prisma generate && tsc -p tsconfig.json",
+        "start": "node dist/server.js",
+        "typecheck": "tsc -p tsconfig.check.json",
+        "test": "tsx --test tests/*.test.ts",
+        "db:generate": "prisma generate",
+        "db:validate": "prisma validate",
+        "db:check": "tsx scripts/check-database.ts",
+        "db:migrate": "prisma migrate dev",
+        "db:deploy": "prisma migrate deploy",
+        "test:integration": "tsx --test --test-concurrency=1 tests/integration/*.test.ts",
+        "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
+        "postman:generate": "node scripts/generate-postman.mjs"
+    },
+    "dependencies": {
+        "@mapbox/mapbox-sdk": "^0.16.2",
+        "@prisma/adapter-pg": "7.10.0",
+        "@prisma/client": "7.10.0",
+        "cors": "^2.8.6",
+        "dotenv": "^18.0.5",
+        "express": "^5.2.1",
+        "express-rate-limit": "^8.7.0",
+        "google-auth-library": "^11.1.0",
+        "helmet": "^8.3.0",
+        "pg": "8.23.1",
+        "zod": "^4.6.5"
+    },
+    "devDependencies": {
+        "@types/cors": "^2.8.19",
+        "@types/express": "^5.0.6",
+        "@types/node": "^26.6.4",
+        "@types/pg": "8.23.1",
+        "prisma": "7.10.0",
+        "tsx": "^4.23.15",
+        "typescript": "^7.0.2"
+    }
+}
