@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link as RouterLink, useParams } from 'react-router-dom';
+import { Link as RouterLink, useParams, useSearchParams } from 'react-router-dom';
 import { Box, Button, CircularProgress, Container, IconButton, Paper, Stack, Tooltip, Typography } from '@mui/material';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import ErrorRounded from '@mui/icons-material/ErrorRounded';
@@ -16,30 +16,49 @@ const Line = ({ k, v }) => (
 );
 
 export default function Confirmation() {
-  const { ref } = useParams();
+  const { ref: routeRef } = useParams();
+  const [params] = useSearchParams();
+  // The backend callback can send the literal text ":ref" in the path, so ignore it
+  // and fall back to the real reference in the query string (?reference= or ?trxref=).
+  const cleanRoute = routeRef && !routeRef.startsWith(':') ? routeRef : '';
+  const ref = cleanRoute || params.get('reference') || params.get('trxref') || '';
   const [b, setB] = useState(null);
   const [err, setErr] = useState('');
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   const check = useCallback(() => {
+    if (!ref) {
+      setErr('We could not find a booking reference in this link.');
+      setLoading(false);
+      return;
+    }
     setLoading(true); setErr('');
-    verifyBooking(ref).then(setB).catch((e) => setErr(e.message)).finally(() => setLoading(false));
+    verifyBooking(ref)
+      .then((data) => {
+        const booking = data?.booking || data?.data || data;
+        if (!booking || !booking.reference) throw new Error('We could not find this booking. Please contact us with your payment receipt.');
+        setB(booking);
+      })
+      .catch((e) => setErr(e.message))
+      .finally(() => setLoading(false));
   }, [ref]);
   useEffect(check, [check]);
 
-  const copy = () => { navigator.clipboard?.writeText(ref); setCopied(true); setTimeout(() => setCopied(false), 1800); };
+  const copy = () => { navigator.clipboard?.writeText(b.reference); setCopied(true); setTimeout(() => setCopied(false), 1800); };
 
   if (loading && !b) return (
     <Container sx={{ py: 14, textAlign: 'center' }}><CircularProgress /><Typography sx={{ mt: 3 }} fontWeight={600}>Confirming your payment…</Typography></Container>
   );
-  if (err && !b) return (
+  if (!b) return (
     <Container maxWidth="sm" sx={{ py: 10 }}>
-      <Notice action={<Button color="inherit" onClick={check}>Try again</Button>}>{err}</Notice>
+      <Notice action={ref ? <Button color="inherit" onClick={check}>Try again</Button> : null}>{err || 'Something went wrong loading your booking.'}</Notice>
       <Button component={RouterLink} to="/book" sx={{ mt: 3 }}>Start a new booking</Button>
     </Container>
   );
 
+  const customer = b.customer || {};
+  const pkg = b.package || {};
   const paid = b.paymentStatus === 'paid';
   const failed = b.paymentStatus === 'failed';
   const tone = paid ? '#1B8F4C' : failed ? '#C62828' : brand.orange;
@@ -54,7 +73,6 @@ export default function Confirmation() {
           <Box sx={{ width: 84, height: 84, borderRadius: '50%', bgcolor: tone, color: '#fff', display: 'grid', placeItems: 'center', mb: 2 }}><Icon sx={{ fontSize: 48 }} /></Box>
           <Typography variant="h1" sx={{ fontSize: { xs: '2.2rem', md: '3.2rem' } }}>{title}</Typography>
           <Typography color="text.secondary" sx={{ mt: 1.5, fontSize: '1.1rem' }}>{sub}</Typography>
-          {b.demo && <Box sx={{ mt: 2 }}><Notice severity="warning">Demo mode: this payment was simulated by the server. Add a Paystack key before going live.</Notice></Box>}
         </Stack>
 
         <Paper variant="outlined" sx={{ borderRadius: 5, overflow: 'hidden' }}>
@@ -67,18 +85,18 @@ export default function Confirmation() {
             <Stack spacing={1.5}>
               <Typography variant="h5">Booking details</Typography>
               <Line k="Payment" v={paid ? 'Paid' : failed ? 'Failed' : 'Pending'} />
-              <Line k="Booking status" v={b.status} />
-              <Line k="Customer" v={b.customer.name} />
-              <Line k="Phone" v={b.customer.phone} />
-              <Line k="Package" v={b.package.description} />
-              {b.package.size && <Line k="Size" v={b.package.size} />}
-              <Line k="Booked" v={new Date(b.createdAt).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' })} />
+              <Line k="Booking status" v={b.status || '-'} />
+              <Line k="Customer" v={customer.name || '-'} />
+              <Line k="Phone" v={customer.phone || '-'} />
+              <Line k="Package" v={pkg.description || '-'} />
+              {pkg.size && <Line k="Size" v={pkg.size} />}
+              {b.createdAt && <Line k="Booked" v={new Date(b.createdAt).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' })} />}
             </Stack>
           </Box>
           {paid && (
             <Box sx={{ bgcolor: 'rgba(249,107,15,.1)', p: { xs: 2.5, md: 4 } }}>
               <Typography variant="h5" sx={{ mb: 1 }}>What happens next</Typography>
-              <Typography>We will contact you on {b.customer.phone} to arrange your pickup. Quote {b.reference} if you need to reach us about this delivery.</Typography>
+              <Typography>We will contact you{customer.phone ? ` on ${customer.phone}` : ''} to arrange your pickup. Quote {b.reference} if you need to reach us about this delivery.</Typography>
             </Box>
           )}
         </Paper>

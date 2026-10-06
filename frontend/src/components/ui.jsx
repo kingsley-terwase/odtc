@@ -24,7 +24,7 @@ export function Notice({ severity = 'error', children, action }) {
 }
 
 // Route + distance + fare. Used on the Book and Confirmation pages.
-export function FareSummary({ pickup, dropoff, distanceKm, fare, loading }) {
+export function FareSummary({ pickup, dropoff, distanceKm, fare, rate = RATE, minimumFare, loading }) {
   const ready = distanceKm != null && fare != null;
   return (
     <Stack spacing={2.5}>
@@ -41,7 +41,8 @@ export function FareSummary({ pickup, dropoff, distanceKm, fare, loading }) {
       <Divider />
       <Stack spacing={1}>
         <Row label="Distance" value={loading ? 'Calculating…' : ready ? `${distanceKm} km` : '–'} />
-        <Row label="Rate" value={`${naira(RATE)} per km`} />
+        <Row label="Rate" value={`${naira(rate)} per km`} />
+        {ready && minimumFare > 0 && fare <= minimumFare && <Row label="Minimum fare applies" value={naira(minimumFare)} />}
       </Stack>
       <Box sx={{ bgcolor: brand.deep, color: '#fff', borderRadius: 1, p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <Typography fontWeight={600}>Total fare</Typography>

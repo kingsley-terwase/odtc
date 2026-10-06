@@ -1,14 +1,14 @@
-# ODTC Logistics
+# ODTC Logistics (frontend)
 
-React + MUI (Vite) frontend with a small Express API.
+React + MUI (Vite). Talks to the ODTC API at `https://odtc-logistics-api.onrender.com/api/v1`
+(change with `VITE_API_URL`, see `.env.example`).
 
 ```bash
 npm install
-cp .env.example .env     # add PAYSTACK_SECRET_KEY, or leave DEMO_PAYMENTS=true to test
-npm run dev              # site on :5173, API on :4000
+npm run dev      # http://localhost:5173
+npm run build    # outputs dist/ (upload its contents to public_html; public/.htaccess is included)
 ```
 
-- Fill in phone/WhatsApp/email/address in `src/config.js` (empty items are hidden).
-- Fare is calculated on the server (`server/index.js`, `RATE = 50`). The browser only displays it.
-- A booking becomes PAID only after the server verifies with Paystack and the amount matches.
-- Production: `npm run build && NODE_ENV=production npm start` (Express serves `dist/`). Set `CLIENT_URL` to your live domain.
+- Booking: search addresses -> quote -> booking (X-Booking-Token) -> Paystack -> /confirmation verifies payment.
+- Admin: /admin/login (ADMIN accounts only). Orders, customers, earnings, coverage (service areas) and pricing use the admin API.
+- The old `server/` folder is no longer used by the site.

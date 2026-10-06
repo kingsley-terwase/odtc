@@ -25,6 +25,7 @@ export default function App() {
         <Route element={<Layout />}>
           <Route path="/" element={<Home />} />
           <Route path="/book" element={<Book />} />
+          <Route path="/confirmation" element={<Confirmation />} />
           <Route path="/confirmation/:ref" element={<Confirmation />} />
           <Route path="/about" element={<About />} />
         </Route>

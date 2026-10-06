@@ -34,8 +34,22 @@ export default function AdminLogin() {
     };
 
     return (
-        <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center', p: 2, background: `radial-gradient(800px 500px at 90% 0%, rgba(249,107,15,.3), transparent 60%), linear-gradient(160deg, ${brand.blue}, ${brand.deep} 70%)` }}>
-            <Paper component="form" onSubmit={submit} noValidate sx={{ width: '100%', maxWidth: 420, p: { xs: 3, sm: 5 }, borderRadius: 6 }}>
+        <Box
+            sx={{
+                minHeight: '100vh',
+                display: 'grid',
+                placeItems: 'center',
+                p: 2,
+                background: `
+      radial-gradient(900px 600px at 100% 0%, rgba(249, 107, 15, 0.32), transparent 55%),
+      radial-gradient(700px 500px at 0% 100%, rgba(30, 136, 229, 0.22), transparent 55%),
+      linear-gradient(135deg, ${brand.deep} 0%, ${brand.blue} 50%, #031426 100%)
+    `
+            }}
+        >
+
+
+            <Paper component="form" onSubmit={submit} noValidate sx={{ width: '100%', maxWidth: 420, p: { xs: 3, sm: 5 }, borderRadius: 2 }}>
                 <Stack alignItems="center" spacing={1.5} sx={{ mb: 3 }}>
                     <Logo size={72} />
                     <Typography variant="h4">Admin sign in</Typography>
