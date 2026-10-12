@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { keyframes } from '@emotion/react';
 import {
   Avatar, Badge, Box, Button, Chip, CircularProgress, Drawer, IconButton, InputAdornment, Menu, MenuItem, Paper, Stack,
-  Switch, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
+  Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography,
 } from '@mui/material';
 import DashboardRounded from '@mui/icons-material/DashboardRounded';
 import ReceiptLongRounded from '@mui/icons-material/ReceiptLongRounded';
@@ -24,7 +24,8 @@ import PlaceRounded from '@mui/icons-material/PlaceRounded';
 import SellRounded from '@mui/icons-material/SellRounded';
 import { FareSummary, Logo, Notice } from '../../components/ui';
 import { useAuth } from '../../admin/AuthContext';
-import { adminAddSubdivision, adminAreas, adminOrders, adminPricing, adminPricingHistory, adminSetPricing, adminSubdivisions, adminUpdateArea } from '../../api';
+import { adminAreas, adminOrders, adminPricing, adminPricingHistory, adminSetPricing } from '../../api';
+import { AreasView } from './Coverage';
 import { naira } from '../../config';
 import { brand } from '../../theme';
 
@@ -40,7 +41,7 @@ const labelOf = (b) => (b.paymentStatus === 'paid' ? b.status : b.paymentStatus 
 const COLORS = { 'awaiting payment': '#B26A00', 'payment failed': '#C62828', confirmed: brand.blue, 'picked up': '#C2500A', delivered: '#1B8F4C', cancelled: '#6B7280' };
 const FILTERS = ['all', 'confirmed', 'picked up', 'delivered', 'awaiting payment', 'payment failed', 'cancelled'];
 const when = (d) => new Date(d).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
-const initials = (n) => n.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+const initials = (n) => (n || '?').split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 const earns = (b) => b.paymentStatus === 'paid' && b.status !== 'cancelled';
 
 function series(orders, days) {
@@ -211,7 +212,7 @@ function Detail({ b, onClose }) {
   return (
     <Box sx={{ width: { xs: '100vw', sm: 480 }, p: 3 }}>
       <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2 }}>
-        <Box><Typography variant="caption" sx={{ color: 'text.secondary' }}>Order</Typography><Typography variant="h4">{b.reference}</Typography></Box>
+        <Box sx={{ minWidth: 0 }}><Typography variant="caption" sx={{ color: 'text.secondary' }}>Order</Typography><Typography variant="h4" sx={{ fontSize: '1.15rem', wordBreak: 'break-all' }}>{b.reference}</Typography></Box>
         <IconButton onClick={onClose} aria-label="Close"><CloseRounded /></IconButton>
       </Stack>
       <StatusChip b={b} />
@@ -240,7 +241,8 @@ function Detail({ b, onClose }) {
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 3 }}>
         <Box sx={{ gridColumn: '1 / -1' }}><Field k="Description" v={b.package.description} /></Box>
         <Field k="Size" v={b.package.size} /><Field k="Booked" v={when(b.createdAt)} />
-        <Field k="Payment reference" v={b.paymentReference} /><Field k="Payment" v={b.paymentStatus} />
+        <Box sx={{ gridColumn: '1 / -1' }}><Field k="Payment reference" v={b.paymentReference} /></Box>
+        <Field k="Payment" v={b.paymentStatus} />
       </Box>
       {!paid
         ? <Notice severity="info">This order has not been paid yet.</Notice>
@@ -290,6 +292,7 @@ function Overview({ orders, open, go, admin }) {
         </Panel>
       </Box>
       <Panel i={7} title="Latest orders" action={<Button size="small" onClick={() => go('orders')} endIcon={<ArrowForwardRounded />}>See all</Button>}>
+        {orders.length === 0 && <Typography sx={{ color: 'text.secondary' }}>New bookings appear here as customers book.</Typography>}
         <Stack divider={<Box sx={{ borderBottom: '1px solid #EDF1F8' }} />}>
           {orders.slice(0, 5).map((b) => (
             <Stack key={b.reference} direction="row" alignItems="center" spacing={2} onClick={() => open(b.reference)} sx={{ py: 1.5, px: 2, cursor: 'pointer', borderRadius: 2, transition: 'background-color .2s', '&:hover': { bgcolor: '#F4F7FC' } }}>
@@ -342,7 +345,7 @@ function OrdersView({ orders, filter, setFilter, open }) {
               <TableBody>
                 {rows.map((b) => (
                   <TableRow key={b.reference} hover onClick={() => open(b.reference)} sx={{ cursor: 'pointer' }}>
-                    <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{b.reference}</TableCell>
+                    <TableCell sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{b.reference.length > 18 ? `${b.reference.slice(0, 13)}…` : b.reference}</TableCell>
                     <TableCell>{b.customer.name}<Typography variant="caption" display="block" sx={{ color: 'text.secondary' }}>{b.customer.phone}</Typography></TableCell>
                     <TableCell sx={{ display: { xs: 'none', md: 'table-cell' }, maxWidth: 280 }}>
                       <Typography noWrap variant="body2">{b.pickup}</Typography>
@@ -415,49 +418,6 @@ function EarningsView({ orders }) {
         <Kpi i={3} label="Cancelled value" value={cancelled} money accent="#6B7280" icon={CloseRounded} hint="Paid, then cancelled" />
       </Box>
       <Panel i={4} title="Revenue, last 14 days"><BarChart data={data} height={260} /></Panel>
-    </Stack>
-  );
-}
-
-function AreaCard({ area, onChange, i }) {
-  const [subs, setSubs] = useState(null);
-  const [name, setName] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
-  useEffect(() => { adminSubdivisions(area.id).then(setSubs).catch((e) => { setSubs([]); setErr(e.message); }); }, [area.id]);
-  const act = async (fn) => { setBusy(true); setErr(''); try { await fn(); } catch (e) { setErr(e.message); } finally { setBusy(false); } };
-  const add = () => name.trim() && act(async () => { const d = await adminAddSubdivision(area.id, name.trim()); setSubs((x) => [...(x || []), d]); setName(''); });
-  return (
-    <Panel i={i + 1} sx={{ opacity: area.active ? 1 : 0.7, borderColor: area.active ? brand.blue : '#DCE4F2' }}>
-      <Stack direction="row" alignItems="center" spacing={2} sx={{ mb: 2 }}>
-        <Box sx={{ width: 48, height: 48, borderRadius: 3, bgcolor: area.active ? brand.blue : '#DCE4F2', color: '#fff', display: 'grid', placeItems: 'center' }}><PlaceRounded /></Box>
-        <Box sx={{ flex: 1 }}>
-          <Typography variant="h5">{area.name}</Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>{area.active ? 'Customers can book here' : 'Switched off'}{subs ? ` · ${subs.length} approved area${subs.length === 1 ? '' : 's'}` : ''}</Typography>
-        </Box>
-        <Switch checked={!!area.active} disabled={busy} color="secondary" inputProps={{ 'aria-label': `Deliver in ${area.name}` }}
-          onChange={(e) => act(async () => onChange(await adminUpdateArea(area.id, { active: e.target.checked })))} />
-      </Stack>
-      {err && <Box sx={{ mb: 2 }}><Notice>{err}</Notice></Box>}
-      <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1 }}>Approved subdivisions (LGAs, districts)</Typography>
-      <Stack direction="row" gap={1} flexWrap="wrap" sx={{ mb: 2 }}>
-        {subs === null ? <CircularProgress size={22} /> : subs.length === 0 ? <Typography variant="body2">None added yet.</Typography>
-          : subs.map((d) => <Chip key={d.id} label={d.name} sx={{ fontWeight: 600, bgcolor: d.active ? brand.blue : '#fff', color: d.active ? '#fff' : 'inherit', border: d.active ? 0 : '1px solid #C9D5EA' }} />)}
-      </Stack>
-      <Stack direction="row" spacing={1}>
-        <TextField size="small" fullWidth placeholder="Add a subdivision, e.g. Akinyele" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
-        <Button variant="contained" disabled={busy || !name.trim()} onClick={add}>Add</Button>
-      </Stack>
-    </Panel>
-  );
-}
-
-function AreasView({ areas, setAreas }) {
-  return (
-    <Stack spacing={3}>
-      <Typography sx={{ color: 'text.secondary', maxWidth: 700, ...appear(0) }}>Choose where ODTC delivers. The server only gives fares and accepts bookings for pickups and drop-offs inside the areas switched on here.</Typography>
-      {areas.length === 0 && <Notice severity="info">No service areas yet.</Notice>}
-      {areas.map((a, i) => <AreaCard key={a.id} i={i} area={a} onChange={(u) => setAreas((x) => x.map((y) => (y.id === u.id ? u : y)))} />)}
     </Stack>
   );
 }

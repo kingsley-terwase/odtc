@@ -8,13 +8,11 @@ import { createBooking, getQuote, searchPlaces, wakeApi } from '../api';
 import { naira } from '../config';
 import { brand } from '../theme';
 
-// Set to true once Paystack is approved (about 7 business days).
 const PAYSTACK_LIVE = true;
 
-// Bank transfer accounts. An account with an empty number is hidden automatically.
 const BANKS = [
-  { bank: 'OPay', number: '6146013598', name: 'ODTC Logistics' },
-  { bank: 'Providus Bank', number: '', name: 'ODTC Logistics' }, // <-- add the Providus account number here
+  { bank: 'OPay', number: '6146013598', name: 'ODTC Logistics', logo: '/opay.png' },
+  { bank: 'Providus Bank', number: '1310948228', name: 'ODTC Logistics', logo: '/providus.png' },
 ];
 const WHATSAPP = '2348039147577';
 
@@ -192,26 +190,60 @@ export default function Book() {
 
             <Stack spacing={2.5}>
               {banks.map((b) => (
-                <Paper key={b.bank} variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
-                  <Typography variant="subtitle2" color="text.secondary">{b.bank}</Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Typography variant="h5" sx={{ letterSpacing: 1 }}>{b.number}</Typography>
-                    <IconButton aria-label={`Copy ${b.bank} account number`} onClick={() => copy(b.bank, b.number)}>
-                      {copied === b.bank ? <Typography variant="caption">Copied</Typography> : <ContentCopyRounded fontSize="small" />}
+                <Paper
+                  key={b.bank}
+                  variant="outlined"
+                  sx={{ p: 2, borderRadius: 2 }}
+                >
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                      mb: 1.5,
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={b.logo}
+                      alt={`${b.bank} logo`}
+                      sx={{
+                        width: 62,
+                        height: 62,
+                        objectFit: 'contain',
+                        borderRadius: 1,
+                      }}
+                    />
+                  </Box>
+
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <Typography variant="h5" sx={{ letterSpacing: 1 }}>
+                      {b.number}
+                    </Typography>
+
+                    <IconButton
+                      aria-label={`Copy ${b.bank} account number`}
+                      onClick={() => copy(b.bank, b.number)}
+                    >
+                      {copied === b.bank ? (
+                        <Typography variant="caption">Copied</Typography>
+                      ) : (
+                        <ContentCopyRounded fontSize="small" />
+                      )}
                     </IconButton>
                   </Box>
-                  <Typography fontWeight={600}>{b.name}</Typography>
+
+                  <Typography fontWeight={600}>
+                    {b.name}
+                  </Typography>
                 </Paper>
               ))}
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">Reference (use as narration)</Typography>
-                  <Typography sx={{ fontWeight: 600 }}>{order.ref}</Typography>
-                </Box>
-                <IconButton aria-label="Copy reference" onClick={() => copy('ref', order.ref)}>
-                  {copied === 'ref' ? <Typography variant="caption">Copied</Typography> : <ContentCopyRounded fontSize="small" />}
-                </IconButton>
-              </Box>
             </Stack>
 
             <Box sx={{ mt: 3 }}><Notice>Send exactly {naira(order.fare)} and keep your transfer receipt.</Notice></Box>

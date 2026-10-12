@@ -334,7 +334,7 @@ function Footer() {
               color: 'rgba(255,255,255,.7)'
             }}
           >
-            Safe, dependable and reliable delivery. Book online and pay ₦50 for every kilometre.
+            Safe, dependable and reliable delivery. Book online and pay ₦100 for every kilometre.
           </Typography>
         </Box>
 

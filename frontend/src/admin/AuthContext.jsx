@@ -11,10 +11,7 @@ function Provider({ children }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    adminMe()
-      .then(setAdmin)
-      .catch(() => setAdmin(null))
-      .finally(() => setReady(true));
+    adminMe().then(setAdmin).catch(() => setAdmin(null)).finally(() => setReady(true));
   }, []);
 
   const login = useCallback(async (email, password) => {
@@ -22,7 +19,7 @@ function Provider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await adminLogout().catch(() => {});
+    await adminLogout();
     setAdmin(null);
   }, []);
 
@@ -40,9 +37,7 @@ export function AdminShell() {
 export function RequireAdmin({ children }) {
   const { admin, ready } = useAuth();
   const loc = useLocation();
-  if (!ready) {
-    return <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>;
-  }
+  if (!ready) return <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>;
   if (!admin) return <Navigate to="/admin/login" replace state={{ from: loc.pathname }} />;
   return children;
 }

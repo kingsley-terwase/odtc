@@ -1,187 +1,173 @@
-import { API_URL } from './config';
+// ODTC Logistics API client. In dev, /api is proxied by Vite (no CORS). In production it calls VITE_API_URL.
+const BASE = import.meta.env.DEV ? '' : import.meta.env.VITE_API_URL || 'https://odtc-logistics-api.onrender.com';
+const V1 = `${BASE}/api/v1`;
+const TOKEN_KEY = 'odtc_admin_token';
 
-const BASE = `${API_URL}/api/v1`;
-const ADMIN_KEY = 'odtc_admin_token';
-const BOOKINGS_KEY = 'odtc_bookings';
-
-/* ---------- storage (safe if blocked) ---------- */
 const store = {
   get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
-  set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
-  del: (k) => { try { localStorage.removeItem(k); } catch { /* ignore */ } },
+  set: (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* ignore */ } },
 };
 
-/* ---------- http ---------- */
 export class ApiError extends Error {
-  constructor(message, status, code) { super(message); this.status = status; this.code = code; }
+  constructor(message, status = 0, code) { super(message); this.status = status; this.code = code; }
 }
 
-const errorText = (data) => {
-  const e = data?.error;
-  if (typeof e === 'string') return e;
-  return e?.message || data?.message || '';
-};
-
-async function call(path, { method = 'GET', body, headers = {}, token } = {}) {
-  const h = { Accept: 'application/json', ...headers };
-  if (body !== undefined) h['Content-Type'] = 'application/json';
-  if (token) h.Authorization = `Bearer ${token}`;
+async function call(path, { method = 'GET', body, admin = false, guest } = {}) {
+  const headers = { Accept: 'application/json' };
+  if (body) headers['Content-Type'] = 'application/json';
+  if (admin && store.get(TOKEN_KEY)) headers.Authorization = `Bearer ${store.get(TOKEN_KEY)}`;
+  if (guest) headers['X-Booking-Token'] = guest;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 60000);
   let res;
   try {
-    res = await fetch(BASE + path, { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined });
+    res = await fetch(V1 + path, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: ctl.signal });
   } catch {
-    throw new ApiError('Cannot reach the server. Check your connection and try again.', 0);
+    throw new ApiError('Cannot reach the server. It may be waking up, so wait a few seconds and try again.');
+  } finally {
+    clearTimeout(timer);
   }
   const data = res.status === 204 ? {} : await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(errorText(data) || 'Something went wrong. Please try again.', res.status, data?.error?.code);
+  if (!res.ok) {
+    if (admin && res.status === 401) store.set(TOKEN_KEY, null);
+    const e = data.error;
+    const msg = (typeof e === 'string' ? e : e?.message) || data.message || (res.status === 401 ? 'Please sign in again.' : 'Something went wrong. Please try again.');
+    throw new ApiError(msg, res.status, typeof e === 'object' ? e?.code : undefined);
+  }
   return data;
 }
 
-// The API runs on a host that sleeps when idle. Ping it early so the first real request is quick.
-export const wakeApi = () => { fetch(`${BASE}/health`).catch(() => {}); };
+// Pages through a paginated list until everything is loaded.
+async function fetchAll(path, keys, opts) {
+  const out = [];
+  for (let i = 0; i < 40; i++) {
+    const d = await call(`${path}${path.includes('?') ? '&' : '?'}limit=50&offset=${out.length}`, opts);
+    const rows = keys.map((k) => d[k]).find(Array.isArray) ?? (Array.isArray(d) ? d : []);
+    out.push(...rows);
+    if (!rows.length || (d.total != null ? out.length >= d.total : rows.length < 50)) break;
+  }
+  return out;
+}
 
-/* ---------- shared formatting ---------- */
-const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-const km = (meters) => Math.round((num(meters) / 1000) * 10) / 10;
+export const warmUp = () => { fetch(`${V1}/health`).catch(() => { }); }; // wakes a sleeping Render server
+export const wakeApi = warmUp;
 
-/* ---------- guest: locations, quote, booking, payment ---------- */
-export const searchPlaces = async (q) => {
-  const { locations = [] } = await call(`/guest/locations?q=${encodeURIComponent(q)}`);
-  return locations.map((l) => ({ ...l, id: l.mapboxId, label: l.address }));
-};
+/* ---------------- Guest booking (shaped for the Book and Confirmation pages) ---------------- */
+export const searchPlaces = async (q) =>
+  ((await call(`/guest/locations?q=${encodeURIComponent(q)}`)).locations || []).map((l) => ({ ...l, id: l.mapboxId, label: l.address }));
 
-// Returns the display quote plus the one-time token the booking call needs.
-export const getQuote = async (pickup, dropoff) => {
+// Takes two places from searchPlaces. Returns numbers plus the private booking token the later calls need.
+export async function getQuote(pickup, dropoff) {
   const { quote, bookingToken } = await call('/guest/quotes', { method: 'POST', body: { pickupId: pickup.id, deliveryId: dropoff.id } });
   return {
-    id: quote.id,
-    token: bookingToken,
-    distanceKm: km(quote.distanceMeters),
-    fare: num(quote.totalFare),
-    ratePerKm: num(quote.ratePerKm),
-    minimumFare: num(quote.minimumFare),
-    expiresAt: quote.expiresAt,
+    id: quote.id, bookingToken, expiresAt: quote.expiresAt,
+    distanceKm: Math.round(Number(quote.distanceMeters) / 10) / 100,
+    fare: Number(quote.totalFare), ratePerKm: Number(quote.ratePerKm), minimumFare: Number(quote.minimumFare),
+    pickup: quote.pickup?.address, dropoff: quote.delivery?.address,
   };
-};
+}
 
-// Booking token + id are kept so the confirmation page can verify payment after Paystack sends the customer back.
-const rememberBooking = (reference, info) => {
-  let all = {};
-  try { all = JSON.parse(store.get(BOOKINGS_KEY)) || {}; } catch { all = {}; }
-  all[reference] = { ...info, savedAt: Date.now() };
-  all.last = reference;
-  const keep = Object.entries(all).filter(([k]) => k !== 'last').sort((a, b) => b[1].savedAt - a[1].savedAt).slice(0, 10);
-  store.set(BOOKINGS_KEY, JSON.stringify({ ...Object.fromEntries(keep), last: reference }));
+// The booking id and private token are kept in this browser so the confirmation page can verify after Paystack.
+export const saveBooking = (s) => {
+  const v = JSON.stringify(s);
+  [s.reference, s.paymentReference].filter(Boolean).forEach((r) => store.set(`odtc_booking_${r}`, v));
+  store.set('odtc_last_booking', v);
 };
-export const savedBooking = (reference) => {
-  try {
-    const all = JSON.parse(store.get(BOOKINGS_KEY)) || {};
-    const ref = reference || all.last;
-    return ref && all[ref] ? { reference: ref, ...all[ref] } : null;
-  } catch { return null; }
-};
+export const loadBooking = (ref) => { try { return JSON.parse(store.get(`odtc_booking_${ref}`) || store.get('odtc_last_booking')); } catch { return null; } };
 
-// Creates the booking, starts Paystack checkout and returns the payment page address.
-export const createBooking = async ({ quote, customer, pkg }) => {
-  const { booking } = await call('/guest/bookings', {
-    method: 'POST',
-    headers: { 'X-Booking-Token': quote.token },
-    body: {
-      quoteId: quote.id,
-      fullName: customer.name,
-      phone: customer.phone,
-      email: customer.email,
-      packageDescription: pkg.description,
-      ...(pkg.size ? { packageSize: pkg.size } : {}),
-    },
-  });
-  rememberBooking(booking.reference, { id: booking.id, token: quote.token });
-  const pay = await call(`/guest/bookings/${encodeURIComponent(booking.id)}/payment`, { method: 'POST', headers: { 'X-Booking-Token': quote.token } });
+const made = new Map(); // a retry with the same quote and details reuses the booking instead of creating a duplicate
+export async function createBooking({ quote, customer, pkg }) {
+  const desc = pkg.description.trim();
+  const key = [quote.id, customer.name, customer.phone, customer.email, desc, pkg.size].join('|');
+  let booking = made.get(key);
+  if (!booking) {
+    const d = await call('/guest/bookings', {
+      method: 'POST', guest: quote.bookingToken,
+      body: {
+        quoteId: quote.id, fullName: customer.name.trim(), phone: customer.phone.replace(/[\s-]/g, ''), email: customer.email.trim(),
+        packageDescription: pkg.size ? `${desc} (Size: ${pkg.size})` : desc,
+      },
+    });
+    booking = d.booking;
+    made.set(key, booking);
+    saveBooking({ id: booking.id, token: quote.bookingToken, reference: booking.reference });
+  }
+  const pay = await call(`/guest/bookings/${booking.id}/payment`, { method: 'POST', guest: quote.bookingToken });
+  saveBooking({ id: booking.id, token: quote.bookingToken, reference: booking.reference, paymentReference: pay.reference });
   return { authorizationUrl: pay.authorizationUrl, reference: booking.reference };
-};
+}
 
-const PENDING = ['AWAITING_PAYMENT', 'PENDING', 'PENDING_PAYMENT'];
-const payState = (b, raw) => {
-  const p = String(raw?.paymentStatus || b.paymentStatus || raw?.payment?.status || '').toLowerCase();
-  if (['paid', 'success', 'successful'].includes(p)) return 'paid';
-  if (['failed', 'abandoned', 'reversed'].includes(p)) return 'failed';
-  const s = String(b.status || '').toUpperCase();
-  if (s.includes('FAIL')) return 'failed';
-  return PENDING.includes(s) || !s ? 'pending' : 'paid';
-};
-const words = (s) => String(s || '').toLowerCase().replace(/_/g, ' ');
+// Verifies the payment with the API and returns the booking in the shape the pages use.
+export async function verifyBooking(ref) {
+  const s = loadBooking(ref);
+  if (!s) throw new ApiError('We could not find this booking in this browser. If you already paid, your receipt was emailed to you.');
+  const read = () => call(`/guest/bookings/${s.id}`, { guest: s.token });
+  let raw;
+  try { raw = await call(`/guest/bookings/${s.id}/verify-payment`, { method: 'POST', guest: s.token }); } catch { raw = await read(); }
+  let b = normalizeBooking(raw);
+  if (!b.pickup || !b.reference) b = normalizeBooking(await read()); // the verify reply had no route details
+  return b;
+}
 
-// One shape for every screen: customer, route, fare, package, payment and booking status.
-const shape = (b, raw = {}) => ({
-  id: b.id,
-  reference: b.reference,
-  customer: { name: b.fullName, phone: b.phone, email: b.email },
-  pickup: b.quote?.pickup?.address,
-  dropoff: b.quote?.delivery?.address,
-  distanceKm: km(b.quote?.distanceMeters),
-  ratePerKm: num(b.quote?.ratePerKm),
-  fare: num(b.quote?.totalFare),
-  package: { description: b.packageDescription, size: b.packageSize || '' },
-  paymentReference: b.reference,
-  paymentStatus: payState(b, raw),
-  status: words(b.status),
-  receiptStatus: words(b.receiptStatus),
-  createdAt: b.createdAt,
-});
+// Turns an API booking into the shape the pages use.
+export function normalizeBooking(raw) {
+  const b = raw?.booking ?? raw ?? {};
+  const q = b.quote ?? {};
+  const st = String(b.status ?? '').toUpperCase().replace(/[\s-]/g, '_');
+  const cancelled = ['CANCELLED', 'CANCELED', 'REFUNDED'].includes(st);
+  const paid = ['PAID', 'CONFIRMED', 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'].includes(st) || (cancelled && !!b.paidAt);
+  const failed = !paid && (st.includes('FAIL') || st === 'EXPIRED' || cancelled);
+  const status = cancelled ? 'cancelled' : ['DELIVERED', 'COMPLETED'].includes(st) ? 'delivered' : ['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(st) ? 'picked up' : paid ? 'confirmed' : failed ? 'payment failed' : 'awaiting payment';
+  return {
+    id: b.id, reference: b.reference, paymentReference: b.reference,
+    paymentStatus: paid ? 'paid' : failed ? 'failed' : 'pending', status,
+    customer: { name: b.fullName || '', phone: b.phone || '', email: b.email || '' },
+    pickup: q.pickup?.address || '', dropoff: q.delivery?.address || '',
+    distanceKm: Math.round(Number(q.distanceMeters || 0) / 10) / 100, fare: Number(q.totalFare || 0),
+    package: { description: b.packageDescription || '', size: b.packageSize || '' },
+    createdAt: b.createdAt || new Date().toISOString(),
+  };
+}
 
-// Asks the server to check Paystack, then loads the full booking for display.
-export const verifyBooking = async (reference) => {
-  const saved = savedBooking(reference);
-  if (!saved) throw new ApiError('We could not find this booking on this device. Open the link on the phone or computer you booked with, or contact us with your reference.', 404);
-  const headers = { 'X-Booking-Token': saved.token };
-  const verified = await call(`/guest/bookings/${encodeURIComponent(saved.id)}/verify-payment`, { method: 'POST', headers });
-  let full = verified.booking || (verified.reference ? verified : null);
-  try {
-    const g = await call(`/guest/bookings/${encodeURIComponent(saved.id)}`, { headers });
-    full = g.booking || g;
-  } catch { /* fall back to the verify response */ }
-  if (!full?.reference) throw new ApiError('Payment check finished but the booking could not be loaded. Please try again.', 502);
-  return shape(full, verified);
-};
+/* ---------------- Admin ---------------- */
+export async function adminLogin(email, password) {
+  const d = await call('/auth/login', { method: 'POST', body: { email, password } });
+  if (d.user?.role !== 'ADMIN') throw new ApiError('This account does not have admin access.', 403);
+  store.set(TOKEN_KEY, d.token);
+  return d.user;
+}
+export async function adminMe() {
+  if (!store.get(TOKEN_KEY)) throw new ApiError('Not signed in.', 401);
+  const d = await call('/auth/me', { admin: true });
+  if (d.user?.role !== 'ADMIN') { store.set(TOKEN_KEY, null); throw new ApiError('Not an admin.', 403); }
+  return d.user;
+}
+export async function adminLogout() {
+  try { await call('/auth/logout', { method: 'POST', admin: true }); } catch { /* ignore */ }
+  store.set(TOKEN_KEY, null);
+}
 
-/* ---------- admin: session ---------- */
-const adminToken = () => store.get(ADMIN_KEY);
-const admin = (path, opts = {}) => {
-  const token = adminToken();
-  if (!token) return Promise.reject(new ApiError('Please sign in.', 401));
-  return call(path, { ...opts, token }).catch((e) => { if (e.status === 401) store.del(ADMIN_KEY); throw e; });
-};
+export async function adminOrders() {
+  const rows = await fetchAll('/admin/bookings', ['bookings', 'items', 'data'], { admin: true });
+  return rows.map(normalizeBooking).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
 
-export const adminLogin = async (email, password) => {
-  const { token, user } = await call('/auth/login', { method: 'POST', body: { email, password } });
-  if (user?.role !== 'ADMIN') throw new ApiError('This account does not have admin access.', 403);
-  store.set(ADMIN_KEY, token);
-  return user;
-};
-export const adminMe = async () => (await admin('/auth/me')).user;
-export const adminLogout = async () => {
-  try { await admin('/auth/logout', { method: 'POST' }); } finally { store.del(ADMIN_KEY); }
-};
-
-/* ---------- admin: bookings ---------- */
-export const adminOrders = async () => {
-  const data = await admin('/admin/bookings?limit=100&offset=0');
-  const list = data.bookings || data.items || data.data || (Array.isArray(data) ? data : []);
-  return list.map((b) => shape(b));
-};
-
-/* ---------- admin: pricing ---------- */
-const price = (p) => p && ({ id: p.id, ratePerKm: p.ratePerKm, minimumFare: p.minimumFare, currency: p.currency, createdAt: p.createdAt });
-export const adminPricing = async () => {
-  try { return price((await admin('/admin/pricing')).pricing); } catch (e) { if (e.status === 404) return null; throw e; }
-};
-export const adminPricingHistory = async () => ((await admin('/admin/pricing/history')).pricing || []).map(price);
+export async function adminPricing() {
+  try { return (await call('/admin/pricing', { admin: true })).pricing; } catch (e) { if (e.status === 404) return null; throw e; }
+}
+export const adminPricingHistory = async () => (await call('/admin/pricing/history', { admin: true })).pricing || [];
 export const adminSetPricing = async (ratePerKm, minimumFare) =>
-  price((await admin('/admin/pricing', { method: 'POST', body: { ratePerKm, minimumFare } })).pricing);
+  (await call('/admin/pricing', { method: 'POST', admin: true, body: { ratePerKm, minimumFare } })).pricing;
 
-/* ---------- admin: service areas ---------- */
-export const adminAreas = async () => (await admin('/admin/service-areas?limit=100&offset=0')).areas || [];
-export const adminUpdateArea = async (id, patch) => (await admin(`/admin/service-areas/${encodeURIComponent(id)}`, { method: 'PATCH', body: patch })).area;
-export const adminSubdivisions = async (areaId) => (await admin(`/admin/service-areas/${encodeURIComponent(areaId)}/subdivisions?limit=100&offset=0`)).subdivisions || [];
-export const adminAddSubdivision = async (areaId, name) =>
-  (await admin(`/admin/service-areas/${encodeURIComponent(areaId)}/subdivisions`, { method: 'POST', body: { name } })).subdivision;
+export const adminAreas = () => fetchAll('/admin/service-areas', ['areas'], { admin: true });
+export const adminCreateArea = async (body) => (await call('/admin/service-areas', { method: 'POST', admin: true, body })).area;
+export const adminUpdateArea = async (id, patch) => (await call(`/admin/service-areas/${id}`, { method: 'PATCH', admin: true, body: patch })).area;
+export const adminSubdivisions = (id) => fetchAll(`/admin/service-areas/${id}/subdivisions`, ['subdivisions'], { admin: true });
+export const adminAvailableSubdivisions = (id, { limit = 50, offset = 0 } = {}) =>
+  call(`/admin/service-areas/${id}/available-subdivisions?limit=${limit}&offset=${offset}`, { admin: true });
+export const adminAddSubdivision = async (id, name) => (await call(`/admin/service-areas/${id}/subdivisions`, { method: 'POST', admin: true, body: { name } })).subdivision;
+// ASSUMED endpoint (the collection's "Update subdivision" request is blank): PATCH .../subdivisions/:subId
+export const adminUpdateSubdivision = async (id, subId, patch) => {
+  const d = await call(`/admin/service-areas/${id}/subdivisions/${subId}`, { method: 'PATCH', admin: true, body: patch });
+  return d.subdivision ?? patch;
+};

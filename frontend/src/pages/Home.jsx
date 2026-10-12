@@ -16,7 +16,8 @@ import Calculate from '/calculate.png';
 import Payment from '/payment.png';
 import Confirm from '/confirm.png'
 import { SectionHeading } from '../components/ui';
-import { RATE, naira } from '../config';
+import { naira } from '../config';
+import { RateProvider, useRateValue } from '../useRate';
 import { brand } from '../theme';
 
 const MAX_KM = 40;
@@ -115,6 +116,7 @@ function ScrollBar() {
 
 /* ============ Hero ============ */
 function FareTicket() {
+  const rate = useRateValue();
   const path = useRef(null);
   const [km, setKm] = useState(2);
   const [len, setLen] = useState(0);
@@ -165,8 +167,8 @@ function FareTicket() {
         {[-1, 1].map((s) => <Box key={s} sx={{ position: 'absolute', top: -14, [s < 0 ? 'left' : 'right']: -14, width: 28, height: 28, borderRadius: '50%', bgcolor: brand.deep }} />)}
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ p: { xs: 2.5, sm: 3.5 } }}>
           <Box>
-            <Typography sx={{ color: 'text.secondary', fontWeight: 600 }}>{km} km × {naira(RATE)}</Typography>
-            <Typography variant="h2" aria-live="polite" sx={{ fontSize: { xs: '2.6rem', sm: '3.4rem' }, color: brand.blue }}>{naira(km * RATE)}</Typography>
+            <Typography sx={{ color: 'text.secondary', fontWeight: 600 }}>{km} km × {naira(rate)}</Typography>
+            <Typography variant="h2" aria-live="polite" sx={{ fontSize: { xs: '2.6rem', sm: '3.4rem' }, color: brand.blue }}>{naira(km * rate)}</Typography>
           </Box>
           <Button component={RouterLink} to="/book" variant="contained" color="secondary" size="large" endIcon={<ArrowForwardRounded />}>Book it</Button>
         </Stack>
@@ -249,7 +251,8 @@ function Line({ children, delay, color }) {
 }
 
 function Marquee() {
-  const words = ['Safe', 'Dependable', 'Reliable', `${naira(RATE)} per kilometre`, 'Pay online', 'Instant booking reference'];
+  const rate = useRateValue();
+  const words = ['Safe', 'Dependable', 'Reliable', `${naira(rate)} per kilometre`, 'Pay online', 'Instant booking reference'];
   const items = [...words, ...words, ...words, ...words];
   return (
     <Box aria-hidden sx={{ position: 'relative', mt: { xs: 8, md: 12 }, bgcolor: brand.orange, py: { xs: 1.5, md: 2 }, overflow: 'hidden', width: '104%', ml: '-2%', boxShadow: '0 -20px 60px rgba(0,0,0,.25)' }}>
@@ -269,7 +272,8 @@ function Marquee() {
 }
 
 function Hero() {
-  const facts = [[SellRounded, `${naira(RATE)} per km`, 'One flat rate'], [LockRounded, 'Secure payment', 'Pay online'], [ReceiptLongRounded, 'Instant reference', 'After you pay']];
+  const rate = useRateValue();
+  const facts = [[SellRounded, `${naira(rate)} per km`, 'One flat rate'], [LockRounded, 'Secure payment', 'Pay online'], [ReceiptLongRounded, 'Instant reference', 'After you pay']];
   const goPricing = (e) => {
     e.preventDefault();
     document.getElementById('pricing')?.scrollIntoView({ behavior: reduced() ? 'auto' : 'smooth' });
@@ -298,7 +302,7 @@ function Hero() {
           </Typography>
 
           <Typography sx={{ mt: 3.5, fontSize: { xs: '1.1rem', md: '1.3rem' }, maxWidth: 540, color: 'rgba(255,255,255,.86)', ...anim(rise, 0.9, 0.75) }}>
-            Enter a pickup and a drop-off and know exactly what you will pay before you pay it. {naira(RATE)} for every kilometre, nothing hidden.
+            Enter a pickup and a drop-off and know exactly what you will pay before you pay it. {naira(rate)} for every kilometre, nothing hidden.
           </Typography>
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 4.5, ...anim(rise, 0.9, 0.9) }}>
@@ -311,7 +315,7 @@ function Hero() {
 
           <Box sx={{ mt: 6, display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, auto)' }, justifyContent: { sm: 'start' }, gap: 1.5, ...anim(rise, 0.9, 1.05) }}>
             {facts.map(([Icon, t, s]) => (
-              <Stack key={t} direction="row" spacing={1.5} alignItems="center" sx={{ px: 2, py: 1.25, borderRadius: 1, bgcolor: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.16)', backdropFilter: 'blur(12px)' }}>
+              <Stack key={s} direction="row" spacing={1.5} alignItems="center" sx={{ px: 2, py: 1.25, borderRadius: 1, bgcolor: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.16)', backdropFilter: 'blur(12px)' }}>
                 <Box sx={{ width: 38, height: 38, borderRadius: 2.5, bgcolor: 'rgba(249,107,15,.2)', color: brand.orange, display: 'grid', placeItems: 'center' }}><Icon fontSize="small" /></Box>
                 <Box><Typography sx={{ fontWeight: 700, lineHeight: 1.2 }}>{t}</Typography><Typography variant="caption" sx={{ color: 'rgba(255,255,255,.7)' }}>{s}</Typography></Box>
               </Stack>
@@ -333,7 +337,9 @@ function Hero() {
 }
 
 /* ============ Pricing ============ */
-function PriceCard({ km, fare, i, dark }) {
+function PriceCard({ km, i, dark }) {
+  const rate = useRateValue();
+  const fare = km * rate;
   const [ref, seen] = useInView();
   const d = i * 0.15;
   return (
@@ -350,7 +356,7 @@ function PriceCard({ km, fare, i, dark }) {
       <Box className="glow" aria-hidden sx={{ position: 'absolute', width: 220, height: 220, right: -80, top: -80, borderRadius: '50%', bgcolor: brand.orange, opacity: dark ? 0.35 : 0, filter: 'blur(60px)', transition: 'opacity .4s' }} />
       <Typography sx={{ position: 'relative', fontWeight: 700, color: dark ? 'rgba(255,255,255,.75)' : 'text.secondary' }}>{km} km trip</Typography>
       <Typography variant="h2" sx={{ position: 'relative', fontSize: { xs: '3rem', md: '3.4rem' }, color: dark ? brand.orange : brand.blue, my: 0.5 }}><CountUp to={fare} active={seen} /></Typography>
-      <Typography sx={{ position: 'relative', color: dark ? 'rgba(255,255,255,.75)' : 'text.secondary', mb: 3 }}>{km} × {naira(RATE)}</Typography>
+      <Typography sx={{ position: 'relative', color: dark ? 'rgba(255,255,255,.75)' : 'text.secondary', mb: 3 }}>{km} × {naira(rate)}</Typography>
       <Box sx={{ position: 'relative', height: 8, borderRadius: 99, bgcolor: dark ? 'rgba(255,255,255,.15)' : '#E6ECF7' }}>
         <Box sx={{ height: '100%', borderRadius: 99, bgcolor: brand.orange, width: seen ? `${(km / 25) * 100}%` : '0%', transition: `width 1.4s ${EASE} ${d + 0.3}s`, ...calm }} />
         <Box sx={{ position: 'absolute', top: '50%', left: seen ? `${(km / 25) * 100}%` : '0%', width: 22, height: 22, mt: '-11px', ml: '-11px', borderRadius: '50%', bgcolor: '#fff', border: `4px solid ${brand.orange}`, transition: `left 1.4s ${EASE} ${d + 0.3}s`, ...calm }} />
@@ -360,19 +366,20 @@ function PriceCard({ km, fare, i, dark }) {
 }
 
 function Pricing() {
+  const rate = useRateValue();
   return (
     <Box id="pricing" sx={{ position: 'relative', overflow: 'hidden', pt: { xs: 12, md: 16 }, pb: { xs: 8, md: 12 }, scrollMarginTop: 70 }}>
       <Box aria-hidden sx={{ position: 'absolute', width: 480, height: 480, left: '-10%', top: '10%', borderRadius: '50%', bgcolor: brand.blue, opacity: 0.08, filter: 'blur(90px)', ...loop(drift, 18) }} />
       <Container maxWidth="lg" sx={{ position: 'relative' }}>
-        <Reveal><SectionHeading title={`${naira(RATE)} a kilometre. That is the whole price.`}>We measure the route from pickup to drop-off and multiply by the rate. You see the number before you pay.</SectionHeading></Reveal>
+        <Reveal><SectionHeading title={`${naira(rate)} a kilometre. That is the whole price.`}>We measure the route from pickup to drop-off and multiply by the rate. You see the number before you pay.</SectionHeading></Reveal>
         <Reveal delay={0.1} sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1.5, mb: 4 }}>
-          {[['Distance', brand.blue], ['×', null], [naira(RATE), brand.orange], ['=', null], ['Your fare', brand.ink]].map(([t, c], i) => (
+          {[['Distance', brand.blue], ['×', null], [naira(rate), brand.orange], ['=', null], ['Your fare', brand.ink]].map(([t, c], i) => (
             c ? <Box key={i} sx={{ px: 2.5, py: 1, borderRadius: 99, bgcolor: c, color: c === brand.orange ? brand.ink : '#fff', fontWeight: 800, fontFamily: '"Bricolage Grotesque"', fontSize: '1.1rem' }}>{t}</Box>
               : <Typography key={i} sx={{ fontWeight: 800, fontSize: '1.4rem', color: 'text.secondary' }}>{t}</Typography>
           ))}
         </Reveal>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: { xs: 2.5, md: 3 } }}>
-          {[[10, 500], [18, 900], [25, 1250]].map(([k, f], i) => <PriceCard key={k} km={k} fare={f} i={i} dark={i === 1} />)}
+          {[10, 18, 25].map((k, i) => <PriceCard key={k} km={k} i={i} dark={i === 1} />)}
         </Box>
       </Container>
     </Box>
@@ -403,7 +410,7 @@ function HowItWorks() {
           {steps.map(([Icon, t, d], i) => (
             <Box key={t} sx={{ position: 'relative', display: 'flex', flexDirection: { xs: 'row', md: 'column' }, alignItems: { xs: 'flex-start', md: 'center' }, textAlign: { md: 'center' }, gap: 2.5, '&:hover .badge': { transform: 'translateY(-6px) rotate(-6deg)', boxShadow: `0 18px 36px -10px ${brand.orange}` } }}>
               <Box className="badge" sx={{ position: 'relative', width: 68, height: 68, flexShrink: 0, borderRadius: '50%', bgcolor: brand.orange, color: brand.ink, display: 'grid', placeItems: 'center', boxShadow: '0 0 0 8px rgba(249,107,15,.18)', transition: 'transform .3s, box-shadow .3s', ...(seen ? anim(pop, 0.8, 0.3 + i * 0.4) : { opacity: 0 }) }}>
-                <Box component={'img'} src={Icon} alt={t} sx={{ maxwidth:'100%', width: '40px'}}/>
+                <Box component={'img'} src={Icon} alt={t} sx={{ maxWidth: '100%', width: '40px' }} />
                 <Box sx={{ position: 'absolute', top: -4, right: -4, width: 24, height: 24, borderRadius: '50%', bgcolor: '#fff', color: brand.deep, fontWeight: 800, fontSize: '.8rem', display: 'grid', placeItems: 'center' }}>{i + 1}</Box>
               </Box>
               <Box sx={{ opacity: seen ? 1 : 0, transform: seen ? 'none' : 'translateY(20px)', transition: `all .8s ${EASE} ${0.5 + i * 0.4}s`, ...calm }}>
@@ -426,14 +433,14 @@ const highlights = [
   [PhoneIphoneRounded, 'Made for your phone', 'Book from your phone, tablet or computer.'],
 ];
 
-const faqs = [
-  ['How is my fare calculated?', `We measure the route distance between pickup and drop-off and multiply it by ${naira(RATE)} per kilometre. A 10 km trip costs ${naira(500)}.`],
-  ['When do I pay?', 'You pay online while booking, after you have seen your distance and fare.'],
-  ['What do I get after paying?', 'A booking reference and a summary of your route, distance, fare and payment status.'],
-  ['Can I book from my phone?', 'Yes. The whole booking works on phones, tablets and computers.'],
-];
-
 function Highlights() {
+  const rate = useRateValue();
+  const faqs = [
+    ['How is my fare calculated?', `We measure the route distance between pickup and drop-off and multiply it by ${naira(rate)} per kilometre. A 10 km trip costs ${naira(10 * rate)}.`],
+    ['When do I pay?', 'You pay online while booking, after you have seen your distance and fare.'],
+    ['What do I get after paying?', 'A booking reference and a summary of your route, distance, fare and payment status.'],
+    ['Can I book from my phone?', 'Yes. The whole booking works on phones, tablets and computers.'],
+  ];
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 9, md: 13 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1.2fr' }, gap: { xs: 6, md: 10 }, alignItems: 'start' }}>
       <Box>
@@ -480,7 +487,7 @@ function CtaBand() {
   return (
     <Container maxWidth="lg" sx={{ pb: { xs: 8, md: 12 } }}>
       <Reveal>
-        <Box sx={{ position: 'relative', overflow: 'hidden', borderRadius: {xs:1, md:2}, p: { xs: 4, md: 8 }, pb: { xs: 9, md: 11 }, background: `linear-gradient(120deg, ${brand.orange} 0%, #FF8A3D 100%)`, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'center' }, justifyContent: 'space-between', gap: 3 }}>
+        <Box sx={{ position: 'relative', overflow: 'hidden', borderRadius: { xs: 1, md: 2 }, p: { xs: 4, md: 8 }, pb: { xs: 9, md: 11 }, background: `linear-gradient(120deg, ${brand.orange} 0%, #FF8A3D 100%)`, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { md: 'center' }, justifyContent: 'space-between', gap: 3 }}>
           {[260, 420].map((s, i) => (
             <Box key={s} aria-hidden sx={{ position: 'absolute', right: -s / 3, top: -s / 3, width: s, height: s, borderRadius: '50%', border: '2px solid rgba(255,255,255,.55)', ...{ animation: `${ping} 4s ease-out ${i * 2}s infinite`, ...calm } }} />
           ))}
@@ -504,13 +511,13 @@ function CtaBand() {
 
 export default function Home() {
   return (
-    <>
+    <RateProvider>
       <ScrollBar />
       <Hero />
       <Pricing />
       <HowItWorks />
       <Highlights />
       <CtaBand />
-    </>
+    </RateProvider>
   );
 }
