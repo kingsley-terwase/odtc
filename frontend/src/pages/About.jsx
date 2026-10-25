@@ -6,16 +6,17 @@ import WhatsApp from '@mui/icons-material/WhatsApp';
 import PlaceRounded from '@mui/icons-material/PlaceRounded';
 import ScheduleRounded from '@mui/icons-material/ScheduleRounded';
 import { SectionHeading } from '../components/ui';
-import { CONTACT, RATE, naira } from '../config';
+import { CONTACT, naira } from '../config';
+import { useRateValue } from '../useRate';
 import { brand } from '../theme';
 
-const values = [
-  ['Safe', 'Your package is handled with care from pickup to drop-off.'],
-  ['Dependable', 'You get a booking reference and a clear record of every delivery.'],
-  ['Reliable', `One honest price: ${naira(RATE)} per kilometre, shown before you pay.`],
-];
-
 export default function About() {
+  const rate = useRateValue();
+  const values = [
+    ['Safe', 'Your package is handled with care from pickup to drop-off.'],
+    ['Dependable', 'You get a booking reference and a clear record of every delivery.'],
+    ['Reliable', `One honest price: ${naira(rate)} per kilometre, shown before you pay.`],
+  ];
   const rows = [
     [PhoneRounded, 'Call us', CONTACT.phone, `tel:${CONTACT.phone}`],
     [WhatsApp, 'WhatsApp', CONTACT.whatsapp && 'Chat with us', `https://wa.me/${CONTACT.whatsapp}`],

@@ -1,5 +1,6 @@
 import { Box, Typography, Stack, Alert, Divider } from '@mui/material';
-import { RATE, naira } from '../config';
+import { naira } from '../config';
+import { useRateValue } from '../useRate';
 import { brand } from '../theme';
 
 export function Logo({ size = 44 }) {
@@ -20,12 +21,16 @@ export function SectionHeading({ title, children, light, align = 'left' }) {
 }
 
 export function Notice({ severity = 'error', children, action }) {
-  return <Alert severity={severity} action={action} sx={{ borderRadius: 3, alignItems: 'center' }}>{children}</Alert>;
+  return <Alert severity={severity} action={action} sx={{ borderRadius: 2, alignItems: 'center' }}>{children}</Alert>;
 }
 
 // Route + distance + fare. Used on the Book and Confirmation pages.
-export function FareSummary({ pickup, dropoff, distanceKm, fare, rate = RATE, minimumFare, loading }) {
+// baseFare, vat, vatRate and total are optional. When given they are listed under the fare and the total includes them.
+export function FareSummary({ pickup, dropoff, distanceKm, fare, rate, minimumFare, loading, baseFare, vat, vatRate, total }) {
+  const liveRate = useRateValue();
+  const shownRate = rate ?? liveRate;
   const ready = distanceKm != null && fare != null;
+  const hasExtras = ready && (baseFare > 0 || vat > 0);
   return (
     <Stack spacing={2.5}>
       <Box sx={{ position: 'relative', pl: 4 }}>
@@ -41,12 +46,15 @@ export function FareSummary({ pickup, dropoff, distanceKm, fare, rate = RATE, mi
       <Divider />
       <Stack spacing={1}>
         <Row label="Distance" value={loading ? 'Calculating…' : ready ? `${distanceKm} km` : '–'} />
-        <Row label="Rate" value={`${naira(rate)} per km`} />
+        <Row label="Rate" value={`${naira(shownRate)} per km`} />
         {ready && minimumFare > 0 && fare <= minimumFare && <Row label="Minimum fare applies" value={naira(minimumFare)} />}
+        {hasExtras && <Row label="Delivery fare" value={naira(fare)} />}
+        {hasExtras && baseFare > 0 && <Row label="Base fare" value={naira(baseFare)} />}
+        {hasExtras && vat > 0 && <Row label={`VAT${vatRate > 0 ? ` (${Number(vatRate)}%)` : ''}`} value={naira(vat)} />}
       </Stack>
       <Box sx={{ bgcolor: brand.deep, color: '#fff', borderRadius: 1, p: 2.5, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <Typography fontWeight={600}>Total fare</Typography>
-        <Typography variant="h3" sx={{ fontSize: '2.2rem', color: ready ? brand.orange : 'rgba(255,255,255,.4)' }}>{ready ? naira(fare) : '₦0'}</Typography>
+        <Typography variant="h3" sx={{ fontSize: '2.2rem', color: ready ? brand.orange : 'rgba(255,255,255,.4)' }}>{ready ? naira(total ?? fare) : '₦0'}</Typography>
       </Box>
     </Stack>
   );
@@ -56,4 +64,11 @@ const Row = ({ label, value }) => (
     <Typography color="text.secondary">{label}</Typography>
     <Typography fontWeight={700}>{value}</Typography>
   </Box>
+);
+
+// ETA text such as "12 min" or "1 hr 5 min".
+export const formatEta = (min) => (min >= 60 ? `${Math.floor(min / 60)} hr${min % 60 ? ` ${min % 60} min` : ''}` : `${min} min`);
+// The estimated arrival time, always bold and blue.
+export const Eta = ({ min, size = 'inherit' }) => (
+  <Box component="span" sx={{ fontWeight: 800, color: brand.blue, fontSize: size }}>{formatEta(min)}</Box>
 );

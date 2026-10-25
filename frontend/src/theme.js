@@ -1,5 +1,5 @@
 import { createTheme } from '@mui/material/styles';
-export const brand = { blue: '#0047AB', deep: '#00297A', orange: '#F96B0F', ink: '#0B1B3A', paper: '#F5F8FD' };
+export const brand = { lightblue: '#c5e3ec', blue: '#0047AB', deep: '#00297A', orange: '#F96B0F', ink: '#0B1B3A', paper: '#F5F8FD' };
 const display = '"Bricolage Grotesque", Figtree, sans-serif';
 export default createTheme({
   palette: {

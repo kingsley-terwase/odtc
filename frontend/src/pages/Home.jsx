@@ -17,7 +17,7 @@ import Payment from '/payment.png';
 import Confirm from '/confirm.png'
 import { SectionHeading } from '../components/ui';
 import { naira } from '../config';
-import { RateProvider, useRateValue } from '../useRate';
+import { useRateValue } from '../useRate';
 import { brand } from '../theme';
 
 const MAX_KM = 40;
@@ -436,7 +436,7 @@ const highlights = [
 function Highlights() {
   const rate = useRateValue();
   const faqs = [
-    ['How is my fare calculated?', `We measure the route distance between pickup and drop-off and multiply it by ${naira(rate)} per kilometre. A 10 km trip costs ${naira(10 * rate)}.`],
+    ['How is my fare calculated?', `We measure the route distance between pickup and drop-off and multiply it by ${naira(rate)} per kilometre. A 10 km trip costs ${naira(10 * rate)}. A small service charge and VAT are added at checkout, and you see the full total before you pay.`],
     ['When do I pay?', 'You pay online while booking, after you have seen your distance and fare.'],
     ['What do I get after paying?', 'A booking reference and a summary of your route, distance, fare and payment status.'],
     ['Can I book from my phone?', 'Yes. The whole booking works on phones, tablets and computers.'],
@@ -511,13 +511,13 @@ function CtaBand() {
 
 export default function Home() {
   return (
-    <RateProvider>
+    <>
       <ScrollBar />
       <Hero />
       <Pricing />
       <HowItWorks />
       <Highlights />
       <CtaBand />
-    </RateProvider>
+    </>
   );
 }

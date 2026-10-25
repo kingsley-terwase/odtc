@@ -38,6 +38,6 @@ export function RequireAdmin({ children }) {
   const { admin, ready } = useAuth();
   const loc = useLocation();
   if (!ready) return <Box sx={{ minHeight: '100vh', display: 'grid', placeItems: 'center' }}><CircularProgress /></Box>;
-  if (!admin) return <Navigate to="/admin/login" replace state={{ from: loc.pathname }} />;
+  if (!admin) return <Navigate to="/signin" replace state={{ from: loc.pathname }} />;
   return children;
 }

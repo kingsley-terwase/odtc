@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { keyframes } from '@emotion/react';
 import {
   Avatar, Badge, Box, Button, Chip, CircularProgress, Drawer, IconButton, InputAdornment, Menu, MenuItem, Paper, Stack,
@@ -22,12 +21,21 @@ import CheckRounded from '@mui/icons-material/CheckRounded';
 import ArrowForwardRounded from '@mui/icons-material/ArrowForwardRounded';
 import PlaceRounded from '@mui/icons-material/PlaceRounded';
 import SellRounded from '@mui/icons-material/SellRounded';
+import TwoWheelerRounded from '@mui/icons-material/TwoWheelerRounded';
 import { FareSummary, Logo, Notice } from '../../components/ui';
 import { useAuth } from '../../admin/AuthContext';
-import { adminAreas, adminOrders, adminPricing, adminPricingHistory, adminSetPricing } from '../../api';
+import { adminAreas, adminOrders, adminPricing, adminPricingHistory, adminSetPricing, adminBaseFares, adminSetBaseFares, BAND_FIELDS, adminVat, adminSetVat } from '../../api';
 import { AreasView } from './Coverage';
+import CouriersView from './Couriers';
+import DispatchView from './Dispatch';
+import SendRounded from '@mui/icons-material/SendRounded';
 import { naira } from '../../config';
 import { brand } from '../../theme';
+
+// Where the admin lands after signing out. Change this if your sign-in page lives at a different path.
+const LOGIN_PATH = '/signin';
+// Saved sign-in tokens. They are wiped on sign-out so the next page load starts signed out.
+const TOKEN_KEYS = ['odtc_admin_token', 'odtc_token'];
 
 /* ================= helpers ================= */
 const EASE = 'cubic-bezier(.2,.7,.2,1)';
@@ -163,7 +171,7 @@ const Field = ({ k, v }) => (
 );
 
 /* ================= sidebar ================= */
-const NAV = [['overview', 'Overview', DashboardRounded], ['orders', 'Orders', ReceiptLongRounded], ['customers', 'Customers', PeopleAltRounded], ['earnings', 'Earnings', PaymentsRounded], ['coverage', 'Coverage', MapRounded], ['pricing', 'Pricing', SellRounded]];
+const NAV = [['overview', 'Overview', DashboardRounded], ['orders', 'Orders', ReceiptLongRounded], ['customers', 'Customers', PeopleAltRounded], ['earnings', 'Earnings', PaymentsRounded], ['coverage', 'Coverage', MapRounded], ['dispatch', 'Dispatch', SendRounded], ['couriers', 'Couriers', TwoWheelerRounded], ['pricing', 'Pricing', SellRounded]];
 
 function Sidebar({ view, go, badge, areas, admin, onLogout }) {
   return (
@@ -227,7 +235,7 @@ function Detail({ b, onClose }) {
           ))}
         </Box>
       )}
-      <Box sx={{ my: 3 }}><FareSummary pickup={b.pickup} dropoff={b.dropoff} distanceKm={b.distanceKm} fare={b.fare} /></Box>
+      <Box sx={{ my: 3 }}><FareSummary pickup={b.pickup} dropoff={b.dropoff} distanceKm={b.distanceKm} fare={b.fare} rate={b.ratePerKm} minimumFare={b.minimumFare} baseFare={b.breakdown?.baseFare} vat={b.breakdown?.vat} vatRate={b.breakdown?.vatRate} total={b.breakdown?.total} /></Box>
       <Typography variant="h5" sx={{ mb: 1.5 }}>Customer</Typography>
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mb: 2 }}>
         <Field k="Name" v={b.customer.name} /><Field k="Phone" v={b.customer.phone} />
@@ -244,10 +252,7 @@ function Detail({ b, onClose }) {
         <Box sx={{ gridColumn: '1 / -1' }}><Field k="Payment reference" v={b.paymentReference} /></Box>
         <Field k="Payment" v={b.paymentStatus} />
       </Box>
-      {!paid
-        ? <Notice severity="info">This order has not been paid yet.</Notice>
-        : <Notice severity="info">Pickup and delivery updates are not available in the admin API yet. Contact the customer from here.</Notice>}
-    </Box>
+          </Box>
   );
 }
 
@@ -445,6 +450,38 @@ function PricingView() {
     setBusy(true);
     try { await adminSetPricing(Number(rate).toFixed(2), Number(min).toFixed(2)); setOk(true); await load(); } catch (e) { setErr(e.message); } finally { setBusy(false); }
   };
+  // Base fare (three distance bands) and VAT. Each has its own save so one failing never blocks the other.
+  const [bf, setBf] = useState(undefined);
+  const [bfIn, setBfIn] = useState({});
+  const [bfBusy, setBfBusy] = useState(false);
+  const [bfMsg, setBfMsg] = useState({ err: '', ok: false });
+  const [vat, setVat] = useState(undefined);
+  const [vatIn, setVatIn] = useState('');
+  const [vatBusy, setVatBusy] = useState(false);
+  const [vatMsg, setVatMsg] = useState({ err: '', ok: false });
+  const fillBands = (d) => { setBf(d); setBfIn(Object.fromEntries((d?.bands || []).map((x) => [x.code, x.amount]))); };
+  useEffect(() => {
+    adminBaseFares().then(fillBands).catch((e) => { setBf(null); setBfMsg({ err: e.message, ok: false }); });
+    adminVat().then((v) => { setVat(v); setVatIn(v?.rate ?? ''); }).catch((e) => { setVat(null); setVatMsg({ err: e.message, ok: false }); });
+  }, []);
+  const saveBf = async () => {
+    setBfMsg({ err: '', ok: false });
+    const changes = {};
+    for (const x of bf?.bands || []) {
+      const v = String(bfIn[x.code] ?? '').trim();
+      if (!money.test(v)) return setBfMsg({ err: 'Each base fare must be 0 or more, with at most 2 decimals.', ok: false });
+      if (Number(v) !== Number(x.amount) && BAND_FIELDS[x.code]) changes[BAND_FIELDS[x.code]] = Number(v).toFixed(2);
+    }
+    if (!Object.keys(changes).length) return setBfMsg({ err: 'Change at least one amount first.', ok: false });
+    setBfBusy(true);
+    try { fillBands(await adminSetBaseFares(changes)); setBfMsg({ err: '', ok: true }); } catch (e) { setBfMsg({ err: e.message, ok: false }); } finally { setBfBusy(false); }
+  };
+  const saveVat = async () => {
+    setVatMsg({ err: '', ok: false });
+    if (!money.test(vatIn) || Number(vatIn) > 100) return setVatMsg({ err: 'Enter a VAT rate between 0 and 100, with at most 2 decimals.', ok: false });
+    setVatBusy(true);
+    try { const v = await adminSetVat(Number(vatIn).toFixed(2)); setVat(v); setVatIn(v?.rate ?? vatIn); setVatMsg({ err: '', ok: true }); } catch (e) { setVatMsg({ err: e.message, ok: false }); } finally { setVatBusy(false); }
+  };
   if (current === undefined) return <Box sx={{ py: 12, textAlign: 'center' }}><CircularProgress /></Box>;
   return (
     <Stack spacing={3}>
@@ -467,7 +504,36 @@ function PricingView() {
           </Stack>
         </Panel>
       </Box>
-      <Panel i={2} title="Pricing history">
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 3 }}>
+        <Panel i={2} title="Base fare by distance">
+          <Stack spacing={2}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>A flat base fare is added to every trip, based on its distance. Change one band or all three.</Typography>
+            {bfMsg.err && <Notice>{bfMsg.err}</Notice>}
+            {bfMsg.ok && <Notice severity="success">Base fares updated. They apply to every new quote.</Notice>}
+            {bf === undefined && <CircularProgress size={24} />}
+            {bf?.bands?.map((x) => (
+              <Stack key={x.code} direction="row" spacing={2} alignItems="center">
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography fontWeight={700}>{x.maxKm == null ? `${Number(x.minKm)} km and above` : `${Number(x.minKm)} to ${Number(x.maxKm)} km`}</Typography>
+                  <Typography variant="caption" color="text.secondary">Now {naira(x.amount)}</Typography>
+                </Box>
+                <TextField size="small" label="Base fare (₦)" value={bfIn[x.code] ?? ''} onChange={(e) => setBfIn((o) => ({ ...o, [x.code]: e.target.value }))} inputProps={{ inputMode: 'decimal' }} sx={{ width: 160 }} />
+              </Stack>
+            ))}
+            <Button variant="contained" color="secondary" size="large" disabled={bfBusy || !bf} onClick={saveBf}>{bfBusy ? 'Saving…' : 'Update base fares'}</Button>
+          </Stack>
+        </Panel>
+        <Panel i={3} title="VAT">
+          <Stack spacing={2}>
+            <Field k="Current VAT rate" v={vat === undefined ? 'Loading…' : vat ? `${Number(vat.rate)}%` : 'Not set'} />
+            {vatMsg.err && <Notice>{vatMsg.err}</Notice>}
+            {vatMsg.ok && <Notice severity="success">VAT rate updated. It is added to every new checkout.</Notice>}
+            <TextField label="VAT rate (%)" value={vatIn} onChange={(e) => setVatIn(e.target.value)} inputProps={{ inputMode: 'decimal' }} />
+            <Button variant="contained" color="secondary" size="large" disabled={vatBusy} onClick={saveVat}>{vatBusy ? 'Saving…' : 'Update VAT'}</Button>
+          </Stack>
+        </Panel>
+      </Box>
+      <Panel i={4} title="Pricing history">
         <Table size="small">
           <TableHead><TableRow sx={{ '& th': { fontWeight: 700 } }}><TableCell>Set on</TableCell><TableCell>Rate per km</TableCell><TableCell>Minimum fare</TableCell></TableRow></TableHead>
           <TableBody>{history.map((h) => <TableRow key={h.id}><TableCell>{when(h.createdAt)}</TableCell><TableCell>{naira(h.ratePerKm)}</TableCell><TableCell>{naira(h.minimumFare)}</TableCell></TableRow>)}</TableBody>
@@ -478,11 +544,10 @@ function PricingView() {
 }
 
 /* ================= page ================= */
-const TITLES = { overview: 'Overview', orders: 'Orders', customers: 'Customers', earnings: 'Earnings', coverage: 'Coverage areas', pricing: 'Pricing' };
+const TITLES = { overview: 'Overview', orders: 'Orders', customers: 'Customers', earnings: 'Earnings', coverage: 'Coverage areas', dispatch: 'Dispatch', couriers: 'Courier applications', pricing: 'Pricing' };
 
 export default function Dashboard() {
   const { admin, logout } = useAuth();
-  const nav = useNavigate();
   const [orders, setOrders] = useState(null);
   const [areas, setAreas] = useState(null);
   const [err, setErr] = useState('');
@@ -492,15 +557,42 @@ export default function Dashboard() {
   const [updated, setUpdated] = useState(null);
   const [menu, setMenu] = useState(false);
   const [anchor, setAnchor] = useState(null);
+  const signingOut = useRef(false);
 
-  const signOut = useCallback(async () => { await logout(); nav('/admin/login', { replace: true }); }, [logout, nav]);
+  // Sign out cleanly:
+  //  1. stop the 30 second refresh and close every drawer and menu,
+  //  2. tell the server (a failure here never blocks signing out),
+  //  3. wipe the saved tokens,
+  //  4. load the sign-in page fresh. A full page load is exactly what a manual refresh does,
+  //     and it avoids the blank screen caused by the route guard and a manual redirect racing each other.
+  const signOut = useCallback(async () => {
+    if (signingOut.current) return;
+    signingOut.current = true;
+    setMenu(false);
+    setAnchor(null);
+    setSelRef(null);
+    try {
+      await logout();
+    } catch {
+      /* sign out locally even if the server call fails */
+    }
+    TOKEN_KEYS.forEach((k) => {
+      try { localStorage.removeItem(k); } catch { /* storage blocked */ }
+      try { sessionStorage.removeItem(k); } catch { /* storage blocked */ }
+    });
+    window.location.replace(LOGIN_PATH);
+  }, [logout]);
 
   const load = useCallback(async () => {
+    if (signingOut.current) return;
     try {
-      setOrders(await adminOrders());
+      const data = await adminOrders();
+      if (signingOut.current) return;
+      setOrders(data);
       setErr('');
       setUpdated(new Date());
     } catch (e) {
+      if (signingOut.current) return;
       if (e.status === 401) await signOut();
       else setErr(e.message);
     }
@@ -559,6 +651,8 @@ export default function Dashboard() {
               {view === 'customers' && <CustomersView orders={orders} />}
               {view === 'earnings' && <EarningsView orders={orders} />}
               {view === 'coverage' && (areas ? <AreasView areas={areas} setAreas={setAreas} /> : <Box sx={{ py: 12, textAlign: 'center' }}><CircularProgress /></Box>)}
+              {view === 'dispatch' && <DispatchView />}
+              {view === 'couriers' && <CouriersView />}
               {view === 'pricing' && <PricingView />}
             </>
           )}

@@ -5,7 +5,8 @@ import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import ErrorRounded from '@mui/icons-material/ErrorRounded';
 import HourglassTopRounded from '@mui/icons-material/HourglassTopRounded';
 import ContentCopyRounded from '@mui/icons-material/ContentCopyRounded';
-import { FareSummary, Notice } from '../components/ui';
+import { Eta, FareSummary, Notice } from '../components/ui';
+import Journey from '../components/Journey';
 import { verifyBooking } from '../api';
 import { brand } from '../theme';
 
@@ -57,6 +58,8 @@ export default function Confirmation() {
     </Container>
   );
 
+  // The breakdown from the booking (or the one saved at checkout). Older bookings made before the charges existed show the fare only.
+  const bd = b.breakdown || { fare: b.fare };
   const customer = b.customer || {};
   const pkg = b.package || {};
   const paid = b.paymentStatus === 'paid';
@@ -75,13 +78,13 @@ export default function Confirmation() {
           <Typography color="text.secondary" sx={{ mt: 1.5, fontSize: '1.1rem' }}>{sub}</Typography>
         </Stack>
 
-        <Paper variant="outlined" sx={{ borderRadius: 5, overflow: 'hidden' }}>
+        <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
           <Box sx={{ bgcolor: brand.deep, color: '#fff', p: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box><Typography variant="caption" sx={{ opacity: 0.75 }}>Booking reference</Typography><Typography variant="h4" sx={{ letterSpacing: 1 }}>{b.reference}</Typography></Box>
             <Tooltip title={copied ? 'Copied' : 'Copy reference'}><IconButton onClick={copy} sx={{ color: '#fff' }} aria-label="Copy reference"><ContentCopyRounded /></IconButton></Tooltip>
           </Box>
           <Box sx={{ p: { xs: 2.5, md: 4 }, display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: { xs: 4, md: 6 } }}>
-            <FareSummary pickup={b.pickup} dropoff={b.dropoff} distanceKm={b.distanceKm} fare={b.fare} />
+            <FareSummary pickup={b.pickup} dropoff={b.dropoff} distanceKm={b.distanceKm} fare={bd.fare ?? b.fare} rate={b.ratePerKm} minimumFare={b.minimumFare} baseFare={bd.baseFare} vat={bd.vat} vatRate={bd.vatRate} total={bd.total} />
             <Stack spacing={1.5}>
               <Typography variant="h5">Booking details</Typography>
               <Line k="Payment" v={paid ? 'Paid' : failed ? 'Failed' : 'Pending'} />
@@ -89,14 +92,18 @@ export default function Confirmation() {
               <Line k="Customer" v={customer.name || '-'} />
               <Line k="Phone" v={customer.phone || '-'} />
               <Line k="Package" v={pkg.description || '-'} />
+              {b.durationMin && <Line k="ETA" v={<Eta min={b.durationMin} />} />}
+              {b.sender && !b.sender.sameAsBooker && <Line k="Sender" v={b.sender.name} />}
+              {b.recipient && !b.recipient.sameAsBooker && <Line k="Recipient" v={b.recipient.name} />}
               {pkg.size && <Line k="Size" v={pkg.size} />}
               {b.createdAt && <Line k="Booked" v={new Date(b.createdAt).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' })} />}
             </Stack>
           </Box>
           {paid && (
             <Box sx={{ bgcolor: 'rgba(249,107,15,.1)', p: { xs: 2.5, md: 4 } }}>
-              <Typography variant="h5" sx={{ mb: 1 }}>What happens next</Typography>
-              <Typography>We will contact you{customer.phone ? ` on ${customer.phone}` : ''} to arrange your pickup. Quote {b.reference} if you need to reach us about this delivery.</Typography>
+              <Typography variant="h5" sx={{ mb: 2 }}>What happens next</Typography>
+              <Journey b={b} />
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>Quote {b.reference} if you need to reach us about this delivery.</Typography>
             </Box>
           )}
         </Paper>
@@ -104,6 +111,7 @@ export default function Confirmation() {
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} justifyContent="center" sx={{ mt: 4 }}>
           {!paid && !failed && <Button variant="contained" size="large" onClick={check} disabled={loading}>{loading ? 'Checking…' : 'Check payment again'}</Button>}
           <Button component={RouterLink} to="/book" variant={paid ? 'contained' : 'outlined'} color="secondary" size="large">Book another delivery</Button>
+          <Button component={RouterLink} to={`/track/${encodeURIComponent(b.reference)}`} size="large">Track delivery</Button>
           <Button component={RouterLink} to="/" size="large">Back to home</Button>
         </Stack>
       </Container>

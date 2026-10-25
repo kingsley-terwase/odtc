@@ -5,20 +5,27 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import MenuRounded from '@mui/icons-material/MenuRounded';
+import HomeRounded from '@mui/icons-material/HomeRounded';
+import TravelExploreRounded from '@mui/icons-material/TravelExploreRounded';
+import TwoWheelerRounded from '@mui/icons-material/TwoWheelerRounded';
+import InfoRounded from '@mui/icons-material/InfoRounded';
 import PhoneRounded from '@mui/icons-material/PhoneRounded';
 import MailRounded from '@mui/icons-material/MailRounded';
 import PlaceRounded from '@mui/icons-material/PlaceRounded';
 import Apple from '@mui/icons-material/Apple';
 import Android from '@mui/icons-material/Android';
 import { Logo } from './ui';
-import { CONTACT } from '../config';
+import { CONTACT, naira } from '../config';
+import { useRateValue } from '../useRate';
 import { brand } from '../theme';
 import LoginRoundedIcon from "@mui/icons-material/LoginRounded";
 import LocalShippingRoundedIcon from "@mui/icons-material/LocalShippingRounded";
 
 const links = [
-  ['/', 'Home'],
-  ['/about', 'About & Contact'],
+  ['/', 'Home', HomeRounded],
+  ['/track', 'Track', TravelExploreRounded],
+  ['/courier', 'Ride with us', TwoWheelerRounded],
+  ['/about', 'About & Contact', InfoRounded],
 ];
 
 function Navbar() {
@@ -63,12 +70,13 @@ function Navbar() {
             spacing={1}
             sx={{ display: { xs: 'none', md: 'flex' } }}
           >
-            {links.map(([to, l]) => (
+            {links.map(([to, l, Icon]) => (
               <Button
                 key={to}
                 component={NavLink}
                 to={to}
                 end
+                startIcon={<Icon sx={{ fontSize: 20 }} />}
                 sx={{
                   color: 'rgba(255,255,255,.85)',
                   '&.active': {
@@ -84,7 +92,7 @@ function Navbar() {
 
           <Button
             component={RouterLink}
-            to="/admin/login"
+            to="/signin"
             variant="contained"
             color="secondary"
             startIcon={<LoginRoundedIcon />}
@@ -134,20 +142,22 @@ function Navbar() {
             open={!!anchor}
             onClose={() => setAnchor(null)}
           >
-            {links.map(([to, l]) => (
+            {links.map(([to, l, Icon]) => (
               <MenuItem
                 key={to}
                 component={RouterLink}
                 to={to}
                 onClick={() => setAnchor(null)}
+                sx={{ gap: 1.5, fontWeight: 600 }}
               >
+                <Icon sx={{ color: brand.blue }} />
                 {l}
               </MenuItem>
             ))}
 
             <MenuItem
               component={RouterLink}
-              to="/admin/login"
+              to="/signin"
               onClick={() => setAnchor(null)}
             >
               <LoginRoundedIcon sx={{ mr: 1.5, fontSize: 20 }} />
@@ -293,6 +303,7 @@ function AppComingSoonDialog({ open, onClose }) {
 }
 
 function Footer() {
+  const rate = useRateValue();
   const [appDialog, setAppDialog] = useState(false);
 
   const items = [
@@ -334,7 +345,7 @@ function Footer() {
               color: 'rgba(255,255,255,.7)'
             }}
           >
-            Safe, dependable and reliable delivery. Book online and pay ₦100 for every kilometre.
+            Safe, dependable and reliable delivery. Book online and pay {naira(rate)} for every kilometre.
           </Typography>
         </Box>
 
@@ -346,6 +357,9 @@ function Footer() {
           {[
             ['/', 'Home'],
             ['/book', 'Book a delivery'],
+            ['/track', 'Track a delivery'],
+            ['/courier', 'Become a courier'],
+            ['/signin', 'Sign in'],
             ['/about', 'About & Contact']
           ].map(([to, l]) => (
             <Typography
@@ -390,12 +404,8 @@ function Footer() {
             ))}
           </Stack>
         )}
-
-        <Stack spacing={1.5}>
-          <Typography fontWeight={700}>
-            Get the app
-          </Typography>
-
+        
+        <Stack direction={{ md: "column", xs: "row" }} spacing={1.5}>
           <StoreBadge
             icon={Apple}
             small="Download on the"
